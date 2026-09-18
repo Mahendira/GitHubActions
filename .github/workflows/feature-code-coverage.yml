@@ -45,11 +45,28 @@ jobs:
           fi
           python scripts/generate_application_from_tests.py --feature "$feature_path" --app-dir app --test-dir tests
 
-      - name: Run tests with coverage gate
+      - name: Run generated tests with coverage gate
         shell: bash
         run: |
           set -e
-          python -m pytest tests --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=${{ inputs.coverage_threshold }} -q
+          feature_path="${{ inputs.feature_path }}"
+          if [[ -z "$feature_path" ]]; then
+            feature_path="Business_requirements_001.feature"
+          fi
+
+          feature_name="${feature_path##*/}"
+          module_name="${feature_name%.feature}"
+          module_name="${module_name// /_}"
+          module_name="${module_name//-/_}"
+          module_name="${module_name,,}_service"
+
+          test_path="tests/test_${module_name}.py"
+          if [[ ! -f "$test_path" ]]; then
+            echo "Generated test file not found: $test_path"
+            exit 1
+          fi
+
+          python -m pytest "$test_path" --cov="app.${module_name}" --cov-report=term-missing --cov-report=xml --cov-fail-under=${{ inputs.coverage_threshold }} -q
 
       - name: Upload coverage artifact
         if: always()

@@ -12,6 +12,15 @@ def slug_to_class_name(value: str) -> str:
     return "".join(word.capitalize() for word in words) + "Service"
 
 
+def slug_to_module_name(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip())
+    cleaned = cleaned.strip("_")
+    if not cleaned:
+        return "generated_service"
+    module_name = "_".join(part.lower() for part in cleaned.split("_") if part)
+    return module_name if module_name.endswith("_service") else f"{module_name}_service"
+
+
 def generate_service_code(feature_name: str) -> str:
     class_name = slug_to_class_name(feature_name)
     return f'''from __future__ import annotations
@@ -23,7 +32,7 @@ class {class_name}:
         self._images = ["image-1", "image-2", "image-3"]
 
     def create_order(self, user_name: str, items: list[str] | None = None):
-        order_id = f"order-{len(self._orders) + 1}"
+        order_id = f"order-{{len(self._orders) + 1}}"
         order = {{
             "id": order_id,
             "user": user_name,
@@ -61,10 +70,10 @@ def ensure_app_directory(path: Path) -> None:
 
 def generate_test_code(feature_name: str) -> str:
     class_name = slug_to_class_name(feature_name)
-    test_name = class_name.lower().replace("service", "")
+    module_name = slug_to_module_name(feature_name)
     return f'''import unittest
 
-from app.{test_name} import {class_name}
+from app.{module_name} import {class_name}
 
 
 class Test{class_name}(unittest.TestCase):
@@ -89,6 +98,16 @@ class Test{class_name}(unittest.TestCase):
     def test_validate_request_rejects_empty_user(self):
         with self.assertRaises(ValueError):
             self.service.validate_request(" ")
+
+    def test_get_order_status_returns_not_found_when_missing(self):
+        status = self.service.get_order_status("missing-order")
+        self.assertEqual(status, "not_found")
+
+    def test_validate_request_accepts_valid_user(self):
+        result = self.service.validate_request("demo-user", ["image-1"])
+        self.assertEqual(result["status"], "valid")
+        self.assertEqual(result["user"], "demo-user")
+        self.assertEqual(result["image_count"], 1)
 '''
 
 
@@ -101,16 +120,17 @@ def main():
 
     feature_file = Path(args.feature)
     feature_name = feature_file.stem.replace("_", " ").replace("-", " ")
+    module_name = slug_to_module_name(feature_name)
     class_name = slug_to_class_name(feature_name)
     app_dir = Path(args.app_dir)
     test_dir = Path(args.test_dir)
 
     ensure_app_directory(app_dir)
-    app_module_path = app_dir / f"{class_name.lower()}.py"
+    app_module_path = app_dir / f"{module_name}.py"
     app_module_path.write_text(generate_service_code(feature_name), encoding="utf-8")
 
     ensure_app_directory(test_dir)
-    test_module_path = test_dir / f"test_{class_name.lower()}.py"
+    test_module_path = test_dir / f"test_{module_name}.py"
     test_module_path.write_text(generate_test_code(feature_name), encoding="utf-8")
 
     print(f"Generated app: {app_module_path}")
