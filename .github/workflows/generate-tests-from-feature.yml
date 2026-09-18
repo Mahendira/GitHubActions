@@ -43,7 +43,7 @@ jobs:
             feature_path="Business_requirements_001.feature"
           fi
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.repo_target }}" && "${{ inputs.repo_target }}" != "." ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             repo_target="${{ inputs.repo_target }}"
             repo_target="${repo_target//[[:space:]]/}"
 
@@ -52,18 +52,20 @@ jobs:
               repo_target="${repo_target%\)}"
             fi
 
-            if [[ "$repo_target" == https://* ]]; then
-              echo "Target repo URL provided: $repo_target"
-              if [[ -n "${GH_TOKEN:-}" ]]; then
-                repo_target="${repo_target#https://}"
-                repo_target="https://x-access-token:${GH_TOKEN}@${repo_target}"
-              fi
-              git clone --depth 1 "$repo_target" /tmp/feature-target-repo
-              cp -R /tmp/feature-target-repo/. .
-            else
-              echo "Using local repo target: $repo_target"
-              if [[ -d "$repo_target" ]]; then
-                cp -R "$repo_target"/. .
+            if [[ -n "$repo_target" && "$repo_target" != "." ]]; then
+              if [[ "$repo_target" == https://* ]]; then
+                echo "Target repo URL provided: $repo_target"
+                if [[ -n "${GH_TOKEN:-}" ]]; then
+                  repo_target="${repo_target#https://}"
+                  repo_target="https://x-access-token:${GH_TOKEN}@${repo_target}"
+                fi
+                git clone --depth 1 "$repo_target" /tmp/feature-target-repo
+                cp -R /tmp/feature-target-repo/. .
+              else
+                echo "Using local repo target: $repo_target"
+                if [[ -d "$repo_target" ]]; then
+                  cp -R "$repo_target"/. .
+                fi
               fi
             fi
           fi
