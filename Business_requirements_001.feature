@@ -1,7 +1,12 @@
-Feature: Search for images using metadata
+Feature: Image Search Functionality
 
-  Scenario: User performs a search query on the repository for images
-    Given the user is on the image repository page
-    When the user enters metadata details "sunset" in the search bar
-    And the user clicks on the search button
-    Then the system should display a list of images related to "sunset" from the repository
+  Scenario: User performs a search query using metadata details
+    Given the user has access to the image repository
+    And the user has valid metadata details for the search
+    When the user submits a search query with the metadata details
+    Then the system should return a list of images matching the metadata
+    And the response code should be 200 as per OpenAPI specification
+    When the user submits a search query with invalid metadata details
+    Then the system should return a response code of 400 as per OpenAPI specification
+    When the user submits a search query with no metadata details
+    Then the system should return a response code of 422 as per OpenAPI specification
