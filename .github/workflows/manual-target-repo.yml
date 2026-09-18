@@ -4,18 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       repo_target:
-        description: 'Local repo path or GitHub repo URL to create or update. Examples: . , /workspace/myrepo , https://github.com/Mahendira/testingactions.git'
+        description: 'Target repo path or GitHub URL. Default is the current repo; example: https://github.com/Mahendira/testingactions.git'
         required: false
         default: '.'
         type: string
+      repo_visibility:
+        description: 'Visibility for a repository created automatically when it does not exist. Example: private (default) or public.'
+        required: false
+        default: 'private'
+        type: choice
+        options:
+          - private
+          - public
       requirement_name:
-        description: 'Base requirement filename without extension'
+        description: 'Base requirement filename without extension. Example: Business_requirements_001'
         required: false
         default: 'Business_requirements_001'
         type: string
       requirement_text:
         description: 'Requirement text to save into a .txt file and use to generate the .feature file.'
         required: true
+        default: 'The system should allow a user to create an order and track its status.'
         type: string
 
 jobs:
@@ -49,10 +58,34 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Ensure target GitHub repo exists
+        shell: bash
+        run: |
+          set -e
+          repo_target="${{ inputs.repo_target }}"
+          if [[ "$repo_target" =~ ^https://github.com/([^/]+)/([^/.]+)(\.git)?$ ]]; then
+            owner="${BASH_REMATCH[1]}"
+            repo_name="${BASH_REMATCH[2]}"
+            echo "Checking GitHub repo: ${owner}/${repo_name}"
+            if gh repo view "${owner}/${repo_name}" --json nameWithOwner >/dev/null 2>&1; then
+              echo "Repository already exists and is accessible."
+            else
+              visibility="${{ inputs.repo_visibility }}"
+              echo "Repository does not exist yet. Creating ${owner}/${repo_name} as ${visibility}..."
+              gh repo create "${owner}/${repo_name}" --${visibility}
+            fi
+          fi
+
       - name: Generate feature in target repo path or URL
         shell: bash
         run: |
+          set -e
+          repo_target="${{ inputs.repo_target }}"
+          if [[ -n "${GH_TOKEN:-}" && "$repo_target" == https://* ]]; then
+            repo_target="${repo_target#https://}"
+            repo_target="https://x-access-token:${GH_TOKEN}@${repo_target}"
+          fi
           python scripts/generate_feature_from_requirement.py \
-            --repo-target "${{ inputs.repo_target }}" \
+            --repo-target "$repo_target" \
             --requirement-name "${{ inputs.requirement_name }}" \
             --requirement-text "${{ inputs.requirement_text }}"
