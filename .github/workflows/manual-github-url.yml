@@ -7,17 +7,27 @@ on:
       # Example: github_repo_url: https://github.com/Mahendira/testingactions.git
       # This is not a file to edit in the repo; it is runtime input.
       github_repo_url:
-        description: 'GitHub repository URL to clone before generating the feature file. Example: https://github.com/Mahendira/testingactions.git'
+        description: 'GitHub repository URL to clone before generating the feature file.'
         required: true
+        default: 'https://github.com/Mahendira/testingactions.git'
         type: string
+      repo_visibility:
+        description: 'Visibility for a repository created automatically when it does not exist. Example: private (default) or public.'
+        required: false
+        default: 'private'
+        type: choice
+        options:
+          - private
+          - public
       requirement_name:
-        description: 'Base requirement filename without extension'
+        description: 'Base requirement filename without extension. Example: Business_requirements_001'
         required: false
         default: 'Business_requirements_001'
         type: string
       requirement_text:
         description: 'Requirement text to save into a .txt file and use to generate the .feature file.'
         required: true
+        default: 'The system should allow a user to create an order and track its status.'
         type: string
 
 jobs:
@@ -38,11 +48,38 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Clone target repo and generate feature file
+      - name: Ensure target GitHub repo exists
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -e
-          git clone --depth 1 "${{ inputs.github_repo_url }}" /tmp/target-repo
+          repo_url="${{ inputs.github_repo_url }}"
+          if [[ "$repo_url" =~ ^https://github.com/([^/]+)/([^/.]+)(\.git)?$ ]]; then
+            owner="${BASH_REMATCH[1]}"
+            repo_name="${BASH_REMATCH[2]}"
+            echo "Checking GitHub repo: ${owner}/${repo_name}"
+            if gh repo view "${owner}/${repo_name}" --json nameWithOwner >/dev/null 2>&1; then
+              echo "Repository already exists and is accessible."
+            else
+              visibility="${{ inputs.repo_visibility }}"
+              echo "Repository does not exist yet. Creating ${owner}/${repo_name} as ${visibility}..."
+              gh repo create "${owner}/${repo_name}" --${visibility} --confirm
+            fi
+          fi
+
+      - name: Clone target repo and generate feature file
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -e
+          repo_url="${{ inputs.github_repo_url }}"
+          if [[ -n "${GITHUB_TOKEN:-}" && "$repo_url" == https://* ]]; then
+            repo_url="${repo_url#https://}"
+            repo_url="https://x-access-token:${GITHUB_TOKEN}@${repo_url}"
+          fi
+          git clone --depth 1 "$repo_url" /tmp/target-repo
           python scripts/generate_feature_from_requirement.py \
             --repo-target "/tmp/target-repo" \
             --requirement-name "${{ inputs.requirement_name }}" \

@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.generate_feature_from_requirement import (
     build_openai_prompt,
@@ -70,6 +71,21 @@ class GenerateFeatureTests(unittest.TestCase):
             self.assertTrue(cloned_repo.exists())
             self.assertTrue((cloned_repo / "README.md").exists())
             self.assertIn("source repo", (cloned_repo / "README.md").read_text(encoding="utf-8"))
+
+    @patch.dict(os.environ, {"GITHUB_TOKEN": "test-token"}, clear=False)
+    @patch("scripts.generate_feature_from_requirement.subprocess.run")
+    def test_resolve_repo_target_injects_github_token_for_https_clone(self, mock_run):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            base_dir = Path(tmp_dir)
+            repo_url = "https://github.com/example/private-repo.git"
+
+            resolved = resolve_repo_target(repo_url, base_dir=base_dir)
+
+            self.assertEqual(resolved, base_dir / "cloned-repos" / "private-repo")
+            self.assertEqual(
+                mock_run.call_args[0][0][4],
+                "https://x-access-token:test-token@github.com/example/private-repo.git",
+            )
 
 
 if __name__ == "__main__":

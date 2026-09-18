@@ -112,6 +112,36 @@ def fallback_feature_text(requirement_path: Path, requirement_text: str) -> str:
     return "\n".join(content_lines)
 
 
+def find_git_auth_token() -> str | None:
+    for env_name in ("GITHUB_TOKEN", "GH_TOKEN", "GIT_TOKEN"):
+        token = os.getenv(env_name)
+        if token and token.strip():
+            return token.strip()
+    return None
+
+
+def inject_git_auth_token(raw_target: str) -> str:
+    if not raw_target.startswith(("http://", "https://")):
+        return raw_target
+
+    parsed = urlparse(raw_target)
+    hostname = (parsed.hostname or "").lower()
+    if not hostname or "@" in (parsed.netloc or ""):
+        return raw_target
+    if hostname != "github.com" and not hostname.endswith(".github.com"):
+        return raw_target
+
+    token = find_git_auth_token()
+    if not token:
+        return raw_target
+
+    credentials = f"x-access-token:{token}"
+    netloc = parsed.hostname
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    return parsed._replace(netloc=f"{credentials}@{netloc}").geturl()
+
+
 def resolve_repo_target(repo_target: str | Path, base_dir: Path | None = None) -> Path:
     raw_target = str(repo_target).strip() if repo_target is not None else "."
     if not raw_target:
@@ -128,7 +158,8 @@ def resolve_repo_target(repo_target: str | Path, base_dir: Path | None = None) -
         clone_dir = (base_dir or Path.cwd()) / "cloned-repos" / repo_name
         if not clone_dir.exists():
             clone_dir.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "clone", "--depth", "1", raw_target, str(clone_dir)], check=True, capture_output=True, text=True)
+            git_clone_target = inject_git_auth_token(raw_target)
+            subprocess.run(["git", "clone", "--depth", "1", git_clone_target, str(clone_dir)], check=True, capture_output=True, text=True)
         return clone_dir
 
     target_path = Path(raw_target).expanduser()
