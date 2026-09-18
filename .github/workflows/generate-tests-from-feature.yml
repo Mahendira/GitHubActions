@@ -1,0 +1,53 @@
+name: Generate unit tests and step definitions from feature files
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.feature'
+  workflow_dispatch:
+    inputs:
+      feature_path:
+        description: 'Optional path to a .feature file to convert into unit tests and step definitions.'
+        required: false
+        type: string
+
+jobs:
+  generate-tests-from-feature:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate unit tests and Cucumber step definitions
+        shell: bash
+        run: |
+          set -e
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.feature_path }}" ]]; then
+            python scripts/generate_tests_from_feature.py "${{ inputs.feature_path }}"
+          else
+            python scripts/generate_tests_from_feature.py
+          fi
+
+      - name: Commit generated test files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No generated files were created or updated."
+          else
+            git commit -m "Generate unit tests and step definitions from feature files"
+            git push
+          fi
