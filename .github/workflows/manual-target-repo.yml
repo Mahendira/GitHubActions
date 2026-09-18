@@ -26,11 +26,23 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: gpt-4o-mini
-      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.GH_PAT }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate GitHub token for repo operations
+        shell: bash
+        run: |
+          set -e
+          if [[ -z "${GH_TOKEN:-}" || "${GH_TOKEN}" == "github.token" ]]; then
+            echo "ERROR: GH_PAT is missing or empty."
+            echo "This workflow needs a PAT with permission to access the target GitHub repository."
+            echo "Fix: add a repository secret named GH_PAT in GitHub -> Settings -> Secrets and variables -> Actions."
+            echo "The token must belong to the same account/org that owns the target repository."
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5

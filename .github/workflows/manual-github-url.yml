@@ -38,10 +38,24 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: gpt-4o-mini
+      GH_TOKEN: ${{ secrets.GH_PAT }}
 
     steps:
       - name: Check out current repository
         uses: actions/checkout@v4
+
+      - name: Validate GitHub token for repo operations
+        shell: bash
+        run: |
+          set -e
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "ERROR: GH_PAT is missing or empty."
+            echo "This workflow needs a PAT with permission to create and access GitHub repositories."
+            echo "Fix: add a repository secret named GH_PAT in GitHub -> Settings -> Secrets and variables -> Actions."
+            echo "Create the PAT from the same account/org that owns the target repository."
+            echo "Required permissions: Contents (Read and write), Metadata (Read), Administration (Read and write)."
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,8 +63,6 @@ jobs:
           python-version: '3.11'
 
       - name: Ensure target GitHub repo exists
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -e
@@ -64,20 +76,18 @@ jobs:
             else
               visibility="${{ inputs.repo_visibility }}"
               echo "Repository does not exist yet. Creating ${owner}/${repo_name} as ${visibility}..."
-              gh repo create "${owner}/${repo_name}" --${visibility} --confirm
+              gh repo create "${owner}/${repo_name}" --${visibility}
             fi
           fi
 
       - name: Clone target repo and generate feature file
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -e
           repo_url="${{ inputs.github_repo_url }}"
-          if [[ -n "${GITHUB_TOKEN:-}" && "$repo_url" == https://* ]]; then
+          if [[ -n "${GH_TOKEN:-}" && "$repo_url" == https://* ]]; then
             repo_url="${repo_url#https://}"
-            repo_url="https://x-access-token:${GITHUB_TOKEN}@${repo_url}"
+            repo_url="https://x-access-token:${GH_TOKEN}@${repo_url}"
           fi
           git clone --depth 1 "$repo_url" /tmp/target-repo
           python scripts/generate_feature_from_requirement.py \
