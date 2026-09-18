@@ -1,1 +1,2 @@
 The system should allow a user to perform a search query on the repository or box or drop box contains images using metadata details. 
+Search API should return response codes correctly as per openAPI specification standards for every request 
