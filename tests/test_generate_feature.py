@@ -87,6 +87,36 @@ class GenerateFeatureTests(unittest.TestCase):
                 "https://x-access-token:test-token@github.com/example/private-repo.git",
             )
 
+    def test_ensure_target_repo_commits_and_pushes_generated_files_for_empty_git_repo(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            remote_repo = Path(tmp_dir) / "remote.git"
+            subprocess.run(["git", "init", "--bare", str(remote_repo)], check=True, capture_output=True)
+
+            work_repo = Path(tmp_dir) / "work-repo"
+            subprocess.run(["git", "clone", str(remote_repo), str(work_repo)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work_repo), "checkout", "-b", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work_repo), "config", "user.name", "Test User"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work_repo), "config", "user.email", "test@example.com"], check=True, capture_output=True)
+            (work_repo / "README.md").write_text("# repo\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(work_repo), "add", "README.md"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work_repo), "commit", "-m", "initial commit"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work_repo), "push", "-u", "origin", "main"], check=True, capture_output=True)
+
+            generated_path = ensure_target_repo(
+                work_repo,
+                requirement_text="The system should allow a user to create an order.",
+                requirement_name="Business_requirements_099",
+                feature_text="Feature: Example\n\nScenario: Example\n  Given ...\n  When ...\n  Then ...\n",
+            )
+
+            self.assertTrue(generated_path.exists())
+            self.assertEqual(
+                subprocess.run(["git", "-C", str(work_repo), "status", "--short"], check=False, capture_output=True, text=True).stdout.strip(),
+                "",
+            )
+            self.assertTrue((work_repo / "Business_requirements_099.txt").exists())
+            self.assertTrue((work_repo / "Business_requirements_099.feature").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -191,6 +191,27 @@ def update_readme_recent_changes(readme_path: Path, requirement_file_name: str, 
     return readme_path
 
 
+def commit_repo_changes(repo_path: Path, summary: str) -> None:
+    try:
+        subprocess.run(["git", "-C", str(repo_path), "rev-parse", "--is-inside-work-tree"], check=True, capture_output=True, text=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return
+
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.name", "GitHub Actions Bot"], check=False, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.email", "github-actions[bot]@users.noreply.github.com"], check=False, capture_output=True, text=True)
+
+    status = subprocess.run(["git", "-C", str(repo_path), "status", "--porcelain"], check=False, capture_output=True, text=True)
+    if not status.stdout.strip():
+        return
+
+    subprocess.run(["git", "-C", str(repo_path), "add", "-A"], check=True, capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(repo_path), "commit", "-m", summary], check=True, capture_output=True, text=True)
+
+    remote_check = subprocess.run(["git", "-C", str(repo_path), "remote", "get-url", "origin"], check=False, capture_output=True, text=True)
+    if remote_check.returncode == 0:
+        subprocess.run(["git", "-C", str(repo_path), "push", "--set-upstream", "origin", "HEAD"], check=True, capture_output=True, text=True)
+
+
 def ensure_target_repo(
     repo_path: Path | str,
     requirement_text: str,
@@ -215,6 +236,7 @@ def ensure_target_repo(
 
     generated_path = generate_feature_file(requirement_path, feature_text=feature_text)
     update_readme_recent_changes(readme_path, requirement_path.name, generated_path.name)
+    commit_repo_changes(repo_path, f"Generate {generated_path.name} from {requirement_path.name}")
     return generated_path
 
 
