@@ -1,10 +1,7 @@
-Feature: Business requirement 001
+Feature: Search for images using metadata
 
-  Scenario: Business requirement 001
-    Given the requirement file "Business_requirements_001.txt" is available
-    And the business need is clearly described
-    """
-      The system should allow a user to perform a search query on the repository or box or drop box contains images using metadata details.
-    """
-    When the requirement is reviewed by the business owner
-    Then a matching Cucumber feature file should be created with a valid Given/When/Then flow
+  Scenario: User performs a search query on the repository for images
+    Given the user is on the image repository page
+    When the user enters metadata details "sunset" in the search bar
+    And the user clicks on the search button
+    Then the system should display a list of images related to "sunset" from the repository
