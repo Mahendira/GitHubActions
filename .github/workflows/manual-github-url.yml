@@ -1,0 +1,49 @@
+name: Generate feature in GitHub repo by URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      # The user enters the actual value here in the GitHub Actions UI when they click "Run workflow".
+      # Example: github_repo_url: https://github.com/Mahendira/testingactions.git
+      # This is not a file to edit in the repo; it is runtime input.
+      github_repo_url:
+        description: 'GitHub repository URL to clone before generating the feature file. Example: https://github.com/Mahendira/testingactions.git'
+        required: true
+        type: string
+      requirement_name:
+        description: 'Base requirement filename without extension'
+        required: false
+        default: 'Business_requirements_001'
+        type: string
+      requirement_text:
+        description: 'Requirement text to save into a .txt file and use to generate the .feature file.'
+        required: true
+        type: string
+
+jobs:
+  generate-feature-in-github-repo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: gpt-4o-mini
+
+    steps:
+      - name: Check out current repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Clone target repo and generate feature file
+        shell: bash
+        run: |
+          set -e
+          git clone --depth 1 "${{ inputs.github_repo_url }}" /tmp/target-repo
+          python scripts/generate_feature_from_requirement.py \
+            --repo-target "/tmp/target-repo" \
+            --requirement-name "${{ inputs.requirement_name }}" \
+            --requirement-text "${{ inputs.requirement_text }}"
