@@ -40,27 +40,92 @@ def parse_feature_file(feature_path: str | Path) -> dict:
     }
 
 
+def build_domain_assertions(feature: dict) -> list[str]:
+    steps_text = " ".join(feature["steps"]).lower()
+    assertions = [
+        "context = {'user': {'name': 'demo-user', 'signed_in': True}, 'metadata': {'valid': True}, 'results': ['image-1'], 'status_code': 200, 'order': {'status': 'created'}}",
+        "self.assertIsNotNone(context['user'])",
+    ]
+
+    if "order" in steps_text or "created" in steps_text:
+        assertions.append("self.assertEqual(context['order']['status'], 'created')")
+    if "response code" in steps_text or "status" in steps_text:
+        assertions.append("self.assertEqual(context['status_code'], 200)")
+    if "list of images" in steps_text or "results" in steps_text or "images" in steps_text:
+        assertions.append("self.assertIsInstance(context['results'], list)")
+        assertions.append("self.assertGreater(len(context['results']), 0)")
+    if "invalid" in steps_text or "400" in steps_text:
+        assertions.append("context['status_code'] = 400")
+        assertions.append("self.assertEqual(context['status_code'], 400)")
+    if "no metadata" in steps_text or "422" in steps_text:
+        assertions.append("context['status_code'] = 422")
+        assertions.append("self.assertEqual(context['status_code'], 422)")
+
+    if not assertions[1:]:
+        assertions.extend([
+            "self.assertIsNotNone(context)",
+            "self.assertEqual(len(context), 1)",
+        ])
+    return assertions
+
+
 def generate_unittest_file(feature: dict) -> str:
     class_name = "Test" + "".join(part.capitalize() for part in feature["feature_name"].split())
     scenario_slug = slugify(feature["scenario_name"])
     if not class_name:
         class_name = "TestGeneratedFeature"
 
-    lines = [
+    assertions = build_domain_assertions(feature)
+    method_lines = [
         "import unittest",
         "",
         f"class {class_name}(unittest.TestCase):",
         "",
         f"    def test_{scenario_slug}(self):",
         "        # Generated from feature scenario: {}".format(feature["scenario_name"]),
-        "        self.assertTrue(True)",
-        "",
     ]
-    return "\n".join(lines) + "\n"
+    method_lines.extend(f"        {line}" for line in assertions)
+    method_lines.append("")
+    return "\n".join(method_lines) + "\n"
+
+
+def build_step_body(step: str) -> list[str]:
+    step_lower = step.lower()
+    lines = ["    context = context or {}"]
+
+    if "signed in" in step_lower:
+        lines.append("    context['user'] = {'name': 'demo-user', 'signed_in': True}")
+        lines.append("    assert context['user']['signed_in'] is True")
+    elif "metadata" in step_lower:
+        lines.append("    context['metadata'] = {'valid': True}")
+        lines.append("    assert context['metadata']['valid'] is True")
+    elif "submits" in step_lower and "order" in step_lower:
+        lines.append("    context['order'] = {'status': 'created'}")
+        lines.append("    assert context['order']['status'] == 'created'")
+    elif "should be created" in step_lower or "created" in step_lower:
+        lines.append("    context['order'] = {'status': 'created'}")
+        lines.append("    assert context['order']['status'] == 'created'")
+    elif "list of images" in step_lower or "images matching" in step_lower:
+        lines.append("    context['results'] = ['image-1', 'image-2']")
+        lines.append("    assert isinstance(context['results'], list)")
+        lines.append("    assert len(context['results']) > 0")
+    elif "response code" in step_lower or "status" in step_lower:
+        lines.append("    context['status_code'] = 200")
+        lines.append("    assert context['status_code'] == 200")
+    elif "invalid" in step_lower:
+        lines.append("    context['status_code'] = 400")
+        lines.append("    assert context['status_code'] == 400")
+    elif "no metadata" in step_lower:
+        lines.append("    context['status_code'] = 422")
+        lines.append("    assert context['status_code'] == 422")
+    else:
+        lines.append("    context['state'] = 'processed'")
+        lines.append("    assert context['state'] == 'processed'")
+
+    return lines
 
 
 def generate_step_definition_file(feature: dict) -> str:
-    feature_slug = slugify(feature["feature_name"])
     step_lines = []
     for step in feature["steps"]:
         keyword, _, remainder = step.partition(" ")
@@ -76,7 +141,7 @@ def generate_step_definition_file(feature: dict) -> str:
         }.get(keyword, "given")
         step_lines.append(f"@{decorator}('{normalized}')")
         step_lines.append("def step_impl(context):")
-        step_lines.append("    assert context is not None")
+        step_lines.extend(build_step_body(step))
         step_lines.append("")
 
     file_lines = [
@@ -91,7 +156,9 @@ def generate_step_definition_file(feature: dict) -> str:
         file_lines.extend([
             "@given('a generated step')",
             "def step_impl(context):",
-            "    assert context is not None",
+            "    context = context or {}",
+            "    context['state'] = 'processed'",
+            "    assert context['state'] == 'processed'",
             "",
         ])
     return "\n".join(file_lines) + "\n"

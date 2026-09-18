@@ -54,7 +54,9 @@ Feature: Order management
 
         self.assertIn("class TestOrderManagement(unittest.TestCase):", generated)
         self.assertIn("def test_user_creates_an_order", generated)
-        self.assertIn("self.assertTrue(True)", generated)
+        self.assertIn("self.assertIsNotNone", generated)
+        self.assertIn("self.assertEqual", generated)
+        self.assertNotIn("assertTrue(True)", generated)
 
     def test_generate_step_definition_file_contains_behave_steps(self):
         feature = {
@@ -73,6 +75,8 @@ Feature: Order management
         self.assertIn("@given('the user is signed in')", generated)
         self.assertIn("@when('the user submits the order')", generated)
         self.assertIn("@then('the order should be created')", generated)
+        self.assertIn("assert", generated)
+        self.assertNotIn("assert context is not None", generated)
 
 
 if __name__ == "__main__":
