@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -61,8 +62,18 @@ def call_openai_api(file_name: str, requirement_text: str) -> str:
         method="POST",
     )
 
-    with urllib.request.urlopen(request, timeout=60) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+
+        print(f"OpenAI HTTP status: {exc.code}")
+        print(f"OpenAI error response: {error_body}")
+
+        raise RuntimeError(
+            f"OpenAI API returned HTTP {exc.code}: {error_body}"
+        ) from exc
 
     try:
         content = data["choices"][0]["message"]["content"].strip()
