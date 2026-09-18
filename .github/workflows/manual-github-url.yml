@@ -67,6 +67,11 @@ jobs:
         run: |
           set -e
           repo_url="${{ inputs.github_repo_url }}"
+          repo_url="${repo_url//[[:space:]]/}"
+          if [[ "$repo_url" == \[*\]\(*\) ]]; then
+            repo_url="${repo_url#*\(}"
+            repo_url="${repo_url%\)}"
+          fi
           if [[ "$repo_url" =~ ^https://github.com/([^/]+)/([^/.]+)(\.git)?$ ]]; then
             owner="${BASH_REMATCH[1]}"
             repo_name="${BASH_REMATCH[2]}"

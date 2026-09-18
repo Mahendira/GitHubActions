@@ -47,8 +47,9 @@ jobs:
             repo_target="${{ inputs.repo_target }}"
             repo_target="${repo_target//[[:space:]]/}"
 
-            if [[ "$repo_target" =~ ^\[.*\]\((https?://[^)]+)\)$ ]]; then
-              repo_target="${BASH_REMATCH[1]}"
+            if [[ "$repo_target" == \[*\]\(*\) ]]; then
+              repo_target="${repo_target#*\(}"
+              repo_target="${repo_target%\)}"
             fi
 
             if [[ "$repo_target" == https://* ]]; then
