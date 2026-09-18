@@ -1,32 +1,55 @@
-# This is a basic workflow that is manually triggered
+name: Generate feature from business requirements
 
-name: Manual workflow
-
-# Controls when the action will run. Workflow runs when manually triggered using the UI
-# or API.
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/Business_requirements_*.txt'
   workflow_dispatch:
-    # Inputs the workflow accepts.
     inputs:
-      name:
-        # Friendly description to be shown in the UI instead of 'name'
-        description: 'Person to greet'
-        # Default value if no value is explicitly provided
-        default: 'Actions!'
-        # Input has to be provided for the workflow to run
-        required: true
-        # The data type of the input
+      requirement_path:
+        description: 'Optional path to a Business_requirements_*.txt file to convert to a feature file.'
+        required: false
         type: string
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "greet"
-  greet:
-    # The type of runner that the job will run on
+  generate-feature:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: gpt-4o-mini
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Runs a single command using the runners shell
-    - name: Send greeting
-      run: echo "Hello ${{ inputs.name }}"
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate Cucumber feature file(s)
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.requirement_path }}" ]]; then
+            python scripts/generate_feature_from_requirement.py "${{ inputs.requirement_path }}"
+          else
+            python scripts/generate_feature_from_requirement.py
+          fi
+
+      - name: Commit generated feature files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No feature files were generated."
+          else
+            git commit -m "Generate feature files from business requirement text"
+            git push
+          fi
