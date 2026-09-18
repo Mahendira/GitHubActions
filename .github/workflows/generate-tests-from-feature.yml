@@ -14,7 +14,7 @@ on:
         default: 'Business_requirements_001.feature'
         type: string
       repo_target:
-        description: 'Target repo path or GitHub URL. Default is the current repo; example: https://github.com/Mahendira/testingactions.git'
+        description: 'Target repo path or GitHub URL. Enter a plain URL value only, not a markdown link; default is the current repo; example: https://github.com/Mahendira/testingactions.git'
         required: false
         default: '.'
         type: string
@@ -45,6 +45,12 @@ jobs:
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.repo_target }}" && "${{ inputs.repo_target }}" != "." ]]; then
             repo_target="${{ inputs.repo_target }}"
+            repo_target="${repo_target//[[:space:]]/}"
+
+            if [[ "$repo_target" =~ ^\[.*\]\((https?://[^)]+)\)$ ]]; then
+              repo_target="${BASH_REMATCH[1]}"
+            fi
+
             if [[ "$repo_target" == https://* ]]; then
               echo "Target repo URL provided: $repo_target"
               if [[ -n "${GH_TOKEN:-}" ]]; then
