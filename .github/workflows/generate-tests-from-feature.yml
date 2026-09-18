@@ -9,8 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       feature_path:
-        description: 'Optional path to a .feature file to convert into unit tests and step definitions.'
+        description: 'Feature file path to convert into unit tests and step definitions. Example: Business_requirements_001.feature or a path in this repo.'
         required: false
+        default: 'Business_requirements_001.feature'
+        type: string
+      repo_target:
+        description: 'Target repo path or GitHub URL. Default is the current repo; example: https://github.com/Mahendira/testingactions.git'
+        required: false
+        default: '.'
         type: string
 
 jobs:
@@ -32,11 +38,30 @@ jobs:
         shell: bash
         run: |
           set -e
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.feature_path }}" ]]; then
-            python scripts/generate_tests_from_feature.py "${{ inputs.feature_path }}"
-          else
-            python scripts/generate_tests_from_feature.py
+          feature_path="${{ inputs.feature_path }}"
+          if [[ -z "$feature_path" ]]; then
+            feature_path="Business_requirements_001.feature"
           fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.repo_target }}" && "${{ inputs.repo_target }}" != "." ]]; then
+            repo_target="${{ inputs.repo_target }}"
+            if [[ "$repo_target" == https://* ]]; then
+              echo "Target repo URL provided: $repo_target"
+              if [[ -n "${GH_TOKEN:-}" ]]; then
+                repo_target="${repo_target#https://}"
+                repo_target="https://x-access-token:${GH_TOKEN}@${repo_target}"
+              fi
+              git clone --depth 1 "$repo_target" /tmp/feature-target-repo
+              cp -R /tmp/feature-target-repo/. .
+            else
+              echo "Using local repo target: $repo_target"
+              if [[ -d "$repo_target" ]]; then
+                cp -R "$repo_target"/. .
+              fi
+            fi
+          fi
+
+          python scripts/generate_tests_from_feature.py "$feature_path"
 
       - name: Commit generated test files
         shell: bash
