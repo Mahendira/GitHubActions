@@ -3,9 +3,12 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def read_requirement_text(file_path: Path) -> str:
@@ -109,6 +112,81 @@ def fallback_feature_text(requirement_path: Path, requirement_text: str) -> str:
     return "\n".join(content_lines)
 
 
+def resolve_repo_target(repo_target: str | Path, base_dir: Path | None = None) -> Path:
+    raw_target = str(repo_target).strip() if repo_target is not None else "."
+    if not raw_target:
+        raw_target = "."
+
+    if raw_target.startswith(("http://", "https://", "git@", "ssh://", "git://", "file://")):
+        parsed = urlparse(raw_target)
+        repo_name = parsed.path.rstrip("/").rsplit("/", 1)[-1]
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+        if not repo_name:
+            repo_name = "cloned-repo"
+
+        clone_dir = (base_dir or Path.cwd()) / "cloned-repos" / repo_name
+        if not clone_dir.exists():
+            clone_dir.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "clone", "--depth", "1", raw_target, str(clone_dir)], check=True, capture_output=True, text=True)
+        return clone_dir
+
+    target_path = Path(raw_target).expanduser()
+    if not target_path.is_absolute():
+        target_path = (base_dir or Path.cwd()) / target_path
+    return target_path.resolve()
+
+
+def update_readme_recent_changes(readme_path: Path, requirement_file_name: str, feature_file_name: str) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    summary = (
+        f"- {timestamp}: Generated {feature_file_name} from {requirement_file_name}."
+    )
+
+    if readme_path.exists():
+        content = readme_path.read_text(encoding="utf-8")
+    else:
+        content = "# Repository\n\n"
+
+    if "## Recent changes" in content:
+        recent_section = content.split("## Recent changes", 1)[1]
+        if summary in recent_section:
+            return readme_path
+        updated = content.rstrip() + "\n\n" + summary + "\n"
+    else:
+        updated = content.rstrip() + "\n\n## Recent changes\n\n" + summary + "\n"
+
+    readme_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
+    return readme_path
+
+
+def ensure_target_repo(
+    repo_path: Path | str,
+    requirement_text: str,
+    requirement_name: str | None = None,
+    feature_text: str | None = None,
+) -> Path:
+    repo_path = resolve_repo_target(repo_path)
+    repo_path.mkdir(parents=True, exist_ok=True)
+
+    if requirement_name is None:
+        requirement_name = "Business_requirements_001"
+    requirement_name = requirement_name.rstrip(".txt")
+    requirement_path = repo_path / f"{requirement_name}.txt"
+    requirement_path.write_text(requirement_text.strip() + "\n", encoding="utf-8")
+
+    readme_path = repo_path / "README.md"
+    if not readme_path.exists():
+        readme_path.write_text(
+            "# Repository\n\nThis repository was created automatically for feature generation.\n",
+            encoding="utf-8",
+        )
+
+    generated_path = generate_feature_file(requirement_path, feature_text=feature_text)
+    update_readme_recent_changes(readme_path, requirement_path.name, generated_path.name)
+    return generated_path
+
+
 def generate_feature_file(requirement_path: Path, feature_text: str | None = None) -> Path:
     requirement_text = read_requirement_text(requirement_path)
     feature_path = requirement_path.with_suffix(".feature")
@@ -145,7 +223,20 @@ def find_requirement_files(paths):
 def main():
     parser = argparse.ArgumentParser(description="Generate Gherkin feature files from business requirement text files.")
     parser.add_argument("paths", nargs="*", help="Path or glob to Business_requirements_*.txt file(s)")
+    parser.add_argument("--repo-target", dest="repo_target", help="Local repo path or GitHub repo URL to create/update and generate the feature file in.")
+    parser.add_argument("--repo-path", dest="repo_path", help="Backward-compatible alias for --repo-target.")
+    parser.add_argument("--requirement-text", dest="requirement_text", help="Requirement text to use when creating a feature in a target repo.")
+    parser.add_argument("--requirement-name", dest="requirement_name", help="Base requirement filename without extension, e.g. Business_requirements_001.")
     args = parser.parse_args()
+
+    repo_target = args.repo_target or args.repo_path
+    if repo_target:
+        if not args.requirement_text:
+            raise SystemExit("--requirement-text is required when --repo-target is provided.")
+        generated_path = ensure_target_repo(repo_target, args.requirement_text, args.requirement_name)
+        print(f"Repo created/updated at: {generated_path.parent}")
+        print(f"Generated: {generated_path}")
+        return 0
 
     requirement_files = find_requirement_files(args.paths)
     if not requirement_files:

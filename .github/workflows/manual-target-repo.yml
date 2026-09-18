@@ -1,0 +1,45 @@
+name: Generate feature in target repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_target:
+        description: 'Local repo path or GitHub repo URL to create or update. Examples: . , /workspace/myrepo , https://github.com/Mahendira/testingactions.git'
+        required: false
+        default: '.'
+        type: string
+      requirement_name:
+        description: 'Base requirement filename without extension'
+        required: false
+        default: 'Business_requirements_001'
+        type: string
+      requirement_text:
+        description: 'Requirement text to save into a .txt file and use to generate the .feature file.'
+        required: true
+        type: string
+
+jobs:
+  generate-feature-in-target-repo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: gpt-4o-mini
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate feature in target repo path or URL
+        shell: bash
+        run: |
+          python scripts/generate_feature_from_requirement.py \
+            --repo-target "${{ inputs.repo_target }}" \
+            --requirement-name "${{ inputs.requirement_name }}" \
+            --requirement-text "${{ inputs.requirement_text }}"
