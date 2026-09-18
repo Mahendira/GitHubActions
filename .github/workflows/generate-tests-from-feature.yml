@@ -14,9 +14,9 @@ on:
         default: 'Business_requirements_001.feature'
         type: string
       repo_target:
-        description: 'Target repo path or GitHub URL. Enter a plain URL value only, not a markdown link; default is the current repo; example: https://github.com/Mahendira/testingactions.git'
+        description: 'Target repo path or GitHub URL. Enter a plain URL value only, not a markdown link; example: https://github.com/Mahendira/testingactions.git'
         required: false
-        default: '.'
+        default: 'https://github.com/Mahendira/testingactions.git'
         type: string
 
 jobs:

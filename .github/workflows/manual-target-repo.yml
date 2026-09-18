@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       repo_target:
-        description: 'Target repo path or GitHub URL. Enter a plain URL value only, not a markdown link; default is the current repo; example: https://github.com/Mahendira/testingactions.git'
+        description: 'Target repo path or GitHub URL. Enter a plain URL value only, not a markdown link; example: https://github.com/Mahendira/testingactions.git'
         required: false
-        default: '.'
+        default: 'https://github.com/Mahendira/testingactions.git'
         type: string
       repo_visibility:
         description: 'Visibility for a repository created automatically when it does not exist. Example: private (default) or public.'
